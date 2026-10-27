@@ -55,11 +55,105 @@
     return Math.abs(value - nearest) <= Number.EPSILON * Math.max(1, Math.abs(value)) * 8 ? nearest : Math.ceil(value);
   }
   const formatMoney = value => new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 0 }).format(ceilMoney(value));
-  const api = { calculateLoan, inferAnnualRate, monthlyPayment, ceilMoney, formatMoney };
+  function calculateInstallment({ principal, periods, annualRate }) {
+    const result = calculateLoan({ principal, periods, annualRate, paidPeriods: 0 });
+    const totalPayment = result.schedule.reduce((sum, row) => sum + row.payment, 0);
+    const totalInterest = result.schedule.reduce((sum, row) => sum + row.interest, 0);
+    return { principal, periods, annualRate, monthly: result.monthly, schedule: result.schedule, totalPayment, totalInterest };
+  }
+  const api = { calculateInstallment, calculateLoan, inferAnnualRate, monthlyPayment, ceilMoney, formatMoney };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.LoanCalculator = api;
   if (typeof document === 'undefined') return;
   const $ = id => document.getElementById(id);
+  function readAmount(id) { return Number($(id).value.replaceAll(',', '')); }
+  for (const id of ['principal', 'monthly-payment', 'mp-principal']) {
+    $(id).addEventListener('input', () => {
+      const input = $(id), raw = input.value.replaceAll(',', '');
+      if (!/^\d+(?:\.\d*)?$/.test(raw)) return;
+      const caret = input.selectionStart;
+      const digitsBefore = input.value.slice(0, caret).replaceAll(',', '').length;
+      const [integer, fraction] = raw.split('.');
+      input.value = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (fraction === undefined ? '' : '.' + fraction);
+      let position = 0, count = 0;
+      while (position < input.value.length && count < digitsBefore) {
+        if (input.value[position] !== ',') count++;
+        position++;
+      }
+      input.setSelectionRange(position, position);
+    });
+  }
+  for (const mode of ['monthly', 'settlement']) {
+    $(mode + '-tab').addEventListener('click', () => {
+      for (const name of ['monthly', 'settlement']) {
+        $(name + '-panel').hidden = name !== mode;
+        $(name + '-tab').setAttribute('aria-pressed', String(name === mode));
+      }
+    });
+  }
+  let installment = null;
+  function clearInstallment() {
+    installment = null;
+    $('mp-results').hidden = true;
+    $('mp-empty').hidden = false;
+    $('mp-error').hidden = true;
+    $('mp-copy-status').textContent = '';
+    $('mp-fallback').hidden = true;
+    $('mp-copy-text').value = '';
+  }
+  $('monthly-form').addEventListener('submit', event => event.preventDefault());
+  $('monthly-form').addEventListener('input', () => {
+    clearInstallment();
+    try {
+      const ids = ['mp-principal', 'mp-periods', 'mp-rate'];
+      // Validate entered fields even while the remaining fields are blank.
+      validate({ paidPeriods: 0, principal: $('mp-principal').value === '' ? 1 : readAmount('mp-principal'), periods: $('mp-periods').value === '' ? 1 : Number($('mp-periods').value), annualRate: $('mp-rate').value === '' ? 0 : Number($('mp-rate').value) });
+      if (ids.some(id => $(id).value.trim() === '')) return;
+      installment = calculateInstallment({ principal: readAmount('mp-principal'), periods: Number($('mp-periods').value), annualRate: Number($('mp-rate').value) });
+      $('mp-monthly').textContent = formatMoney(installment.monthly);
+      $('mp-capital').textContent = money(installment.principal);
+      $('mp-term').textContent = installment.periods + ' 月';
+      $('mp-apr').textContent = installment.annualRate + '%';
+      $('mp-total').textContent = money(installment.totalPayment);
+      $('mp-interest').textContent = money(installment.totalInterest);
+      const fragment = document.createDocumentFragment();
+      for (const row of installment.schedule) {
+        const tr = document.createElement('tr');
+        for (const value of [row.period, ...[row.payment, row.principal, row.interest, row.balance].map(formatMoney)]) {
+          const td = document.createElement('td'); td.textContent = value; tr.appendChild(td);
+        }
+        fragment.appendChild(tr);
+      }
+      $('mp-schedule').replaceChildren(fragment);
+      $('mp-empty').hidden = true;
+      $('mp-results').hidden = false;
+    } catch (error) {
+      $('mp-error').textContent = error.message;
+      $('mp-error').hidden = false;
+    }
+  });
+  $('mp-clear').addEventListener('click', () => {
+    $('monthly-form').reset();
+    clearInstallment();
+    $('mp-details').open = false;
+    $('mp-principal').focus();
+  });
+  $('mp-copy').addEventListener('click', async () => {
+    if (!installment) return;
+    const result = installment;
+    const text = ['LoanCalc｜貸款試算工具 — 分期月付款試算', `貸款本金：${money(result.principal)}`, `貸款總期數：${result.periods} 月`, `年利率：${result.annualRate}%`, `每月應繳金額：${money(result.monthly)}`, `預估總還款金額：${money(result.totalPayment)}`, `預估總利息：${money(result.totalInterest)}`, '計算保留完整精度，顯示金額無條件進位；僅供參考，實際以契約為準。'].join('\n');
+    try {
+      if (!navigator.clipboard || !window.isSecureContext) throw new Error('clipboard unavailable');
+      await navigator.clipboard.writeText(text);
+      if (installment === result) $('mp-copy-status').textContent = '已複製試算結果。';
+    } catch (_) {
+      if (installment !== result) return;
+      $('mp-fallback').hidden = false;
+      $('mp-copy-text').value = text;
+      $('mp-copy-text').focus(); $('mp-copy-text').select();
+      $('mp-copy-status').textContent = '請手動複製下方結果。';
+    }
+  });
   const form = $('loan-form');
   const fields = ['principal', 'periods', 'annual-rate', 'monthly-payment', 'paid-periods'];
   let source = 'annual-rate';
@@ -82,14 +176,14 @@
     $('rate-sync').textContent = '';
     if ($('principal').value === '' || $('periods').value === '' || $(source).value === '') return;
     try {
-      const principal = Number($('principal').value), periods = Number($('periods').value);
+      const principal = readAmount('principal'), periods = Number($('periods').value);
       if (source === 'annual-rate') {
         const annualRate = Number($('annual-rate').value);
         validate({ principal, periods, annualRate, paidPeriods: 0 });
-        $('monthly-payment').value = String(ceilMoney(monthlyPayment(principal, periods, annualRate)));
+        $('monthly-payment').value = formatMoney(monthlyPayment(principal, periods, annualRate));
         $('rate-sync').textContent = '月付款由年利率自動計算並進位顯示；試算仍保留未進位精度。';
       } else {
-        const annualRate = inferAnnualRate(principal, periods, Number($('monthly-payment').value));
+        const annualRate = inferAnnualRate(principal, periods, readAmount('monthly-payment'));
         $('annual-rate').value = String(Number(annualRate.toFixed(8)));
         $('rate-sync').textContent = '年利率由月付款反推（顯示至小數第 8 位）；試算使用原始月付款與完整精度年利率。';
       }
@@ -111,8 +205,8 @@
         if ($(id).value.trim() === '') { $(id).setAttribute('aria-invalid', 'true'); $(id).focus(); throw new Error('本金、總期數及已繳期數不能留白。'); }
       }
       if ($(source).value.trim() === '') throw new Error('月付款或年利率請擇一填寫，不能留白。');
-      const input = { principal: Number($('principal').value), periods: Number($('periods').value), paidPeriods: Number($('paid-periods').value) };
-      if (source === 'monthly-payment') input.monthlyPayment = Number($('monthly-payment').value);
+      const input = { principal: readAmount('principal'), periods: Number($('periods').value), paidPeriods: Number($('paid-periods').value) };
+      if (source === 'monthly-payment') input.monthlyPayment = readAmount('monthly-payment');
       else input.annualRate = Number($('annual-rate').value);
       current = calculateLoan(input);
       syncTerms();

@@ -4,27 +4,45 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#102e52">
-  <meta name="description" content="免費汽車貸款結清試算工具，以本息平均攤還法估算月付款、補足期數及提前結清金額。資料僅在您的瀏覽器計算。">
-  <title>貸款結清試算工具</title>
+  <meta name="description" content="免費 LoanCalc 貸款試算工具，以本息平均攤還法即時計算月付款、總利息及提前結清金額。資料僅在您的瀏覽器計算。">
+  <title>LoanCalc｜貸款試算工具</title>
   <link rel="stylesheet" href="./style.css">
   <script src="./script.js" defer></script>
 </head>
 <body>
-  <header class="topbar"><div class="brand"><span class="brand-icon" aria-hidden="true">＝</span> 貸款結清試算工具 <span class="tag">汽車貸款</span></div></header>
+  <header class="topbar"><div class="brand"><span class="brand-icon" aria-hidden="true">＝</span> LoanCalc｜貸款試算工具 <span class="tag">汽車貸款</span></div></header>
   <main>
-    <section class="intro"><p class="eyebrow">讓下一步，更有把握</p><h1>提前結清，<br class="mobile-break">先算清楚。</h1><p>輸入貸款資料，快速掌握每月負擔與預估結清金額。</p><div class="privacy"><span aria-hidden="true">✓</span> 免費使用 · 無需登入 · 資料僅在您的瀏覽器計算</div></section>
-    <div class="workspace">
+    <section class="intro"><p class="eyebrow">讓下一步，更有把握</p><h1>每月負擔，<br class="mobile-break">先算清楚。</h1><p>輸入貸款資料，快速掌握每月負擔與預估結清金額。</p><div class="privacy"><span aria-hidden="true">✓</span> 免費使用 · 無需登入 · 資料僅在您的瀏覽器計算</div></section>
+    <nav class="mode-switch" aria-label="試算功能"><button id="monthly-tab" type="button" aria-pressed="true" aria-controls="monthly-panel">分期月付款試算</button><button id="settlement-tab" type="button" aria-pressed="false" aria-controls="settlement-panel">貸款結清試算</button></nav>
+<section id="monthly-panel" aria-labelledby="monthly-tab">
+<div class="workspace">
+<section class="card input-card"><h2>分期月付款試算</h2><p class="subtext">填寫三項資料，即時掌握每月負擔。</p>
+<form id="monthly-form" novalidate>
+<div class="field"><label for="mp-principal">貸款金額（新台幣）</label><div class="input-wrap"><input id="mp-principal" type="text" inputmode="numeric" required><span>元</span></div></div>
+<div class="field"><label for="mp-periods">貸款總期數（月）</label><div class="input-wrap"><input id="mp-periods" type="number" inputmode="numeric" min="1" max="1200" step="1" required><span>月</span></div></div>
+<div class="field"><label for="mp-rate">年利率</label><div class="input-wrap"><input id="mp-rate" type="number" inputmode="decimal" min="0" max="100" step="any" required><span>%</span></div></div>
+<p id="mp-error" class="error" role="alert" hidden></p><button id="mp-clear" type="button" class="secondary">清除重新輸入</button>
+</form></section>
+<section class="card result-card" aria-label="月付款試算結果">
+<h2>月付款試算結果</h2><p id="mp-empty" class="empty-state">請輸入貸款金額、總期數與年利率。<br>結果將即時更新，無需按計算按鈕。</p>
+<div id="mp-results" hidden><div class="total-panel"><p>每月應繳金額</p><div class="total"><span>NT$</span><strong id="mp-monthly" aria-live="polite" aria-atomic="true"></strong></div><small>本息平均攤還 · 顯示金額無條件進位至整數元</small></div>
+<dl class="metrics"><div><dt>貸款本金</dt><dd id="mp-capital"></dd></div><div><dt>貸款總期數</dt><dd id="mp-term"></dd></div><div><dt>年利率</dt><dd id="mp-apr"></dd></div><div><dt>預估總還款金額</dt><dd id="mp-total"></dd></div><div><dt>預估總利息</dt><dd id="mp-interest"></dd></div></dl>
+<p class="rounding-note">內部保留完整精度，總額以未進位值計算；顯示月付款乘以期數可能與總還款不同。</p>
+<button id="mp-copy" type="button" class="secondary">複製試算結果</button><p id="mp-copy-status" class="status" role="status"></p><div id="mp-fallback" hidden><label for="mp-copy-text">請長按下方文字全選後複製：</label><textarea id="mp-copy-text" readonly rows="9"></textarea></div>
+<details id="mp-details"><summary>本息平均攤還明細 <span>查看每一期</span></summary><p class="rounding-note">每項金額各自進位顯示；明細可左右滑動。</p><div class="table-scroll" tabindex="0" role="region" aria-label="月付款攤還明細表，可左右捲動"><table><caption class="sr-only">每期月付款、本金、利息及剩餘本金，單位：新台幣元</caption><thead><tr><th scope="col">期數</th><th scope="col">月付款</th><th scope="col">本金</th><th scope="col">利息</th><th scope="col">剩餘本金</th></tr></thead><tbody id="mp-schedule"></tbody></table></div></details></div>
+</section></div></section>
+<section id="settlement-panel" aria-labelledby="settlement-tab" hidden><div class="workspace">
       <section class="card input-card" aria-labelledby="input-title">
         <div class="section-head"><span class="step">01</span><h2 id="input-title">您的貸款資料</h2></div>
         <p class="subtext">採本息平均攤還，假設每月正常繳款。</p>
         <form id="loan-form" novalidate>
-          <div class="field"><label for="principal">貸款本金</label><div class="input-wrap"><input id="principal" name="principal" type="number" inputmode="numeric" min="1" max="1000000000000" step="1" value="600000" required><span>元</span></div></div>
-          <div class="field"><label for="periods">貸款總期數</label><div class="input-wrap"><input id="periods" name="periods" type="number" inputmode="numeric" min="1" max="1200" step="1" value="72" required><span>期</span></div></div>
+          <div class="field"><label for="principal">貸款本金</label><div class="input-wrap"><input id="principal" name="principal" type="text" inputmode="numeric" min="1" max="1000000000000" step="1" required><span>元</span></div></div>
+          <div class="field"><label for="periods">貸款總期數</label><div class="input-wrap"><input id="periods" name="periods" type="number" inputmode="numeric" min="1" max="1200" step="1" required><span>期</span></div></div>
           <p class="info-note" id="rate-choice">月付款或年利率擇一填寫，系統自動計算另一欄；兩欄皆有值時，以最後手動修改的一欄為準。</p>
-          <div class="field"><label for="annual-rate">年利率</label><div class="input-wrap"><input id="annual-rate" name="annualRate" type="number" inputmode="decimal" min="0" max="100" step="any" value="5" aria-describedby="rate-choice rate-sync"><span>%</span></div><small>例如年利率 5%，請輸入 5；支援零利率。</small></div>
-          <div class="field"><label for="monthly-payment">月付款</label><div class="input-wrap"><input id="monthly-payment" name="monthlyPayment" type="number" inputmode="decimal" min="0" step="any" placeholder="例如 12079" aria-describedby="rate-choice rate-sync"><span>元</span></div><small>輸入實際月付款，系統依本息平均攤還法反推年利率。</small></div>
+          <div class="field"><label for="annual-rate">年利率</label><div class="input-wrap"><input id="annual-rate" name="annualRate" type="number" inputmode="decimal" min="0" max="100" step="any" aria-describedby="rate-choice rate-sync"><span>%</span></div><small>例如年利率 5%，請輸入 5；支援零利率。</small></div>
+          <div class="field"><label for="monthly-payment">月付款</label><div class="input-wrap"><input id="monthly-payment" name="monthlyPayment" type="text" inputmode="decimal" min="0" step="any" aria-describedby="rate-choice rate-sync"><span>元</span></div><small>輸入實際月付款，系統依本息平均攤還法反推年利率。</small></div>
           <p id="rate-sync" class="status" role="status" aria-live="polite"></p>
-          <div class="field"><label for="paid-periods">已繳期數</label><div class="input-wrap"><input id="paid-periods" name="paidPeriods" type="number" inputmode="numeric" min="0" max="1200" step="1" value="12" required><span>期</span></div><small>請填寫已完整繳款的期數。</small></div>
+          <div class="field"><label for="paid-periods">已繳期數</label><div class="input-wrap"><input id="paid-periods" name="paidPeriods" type="number" inputmode="numeric" min="0" max="1200" step="1" required><span>期</span></div><small>請填寫已完整繳款的期數。</small></div>
           <p id="form-error" class="error" role="alert" hidden></p>
           <button class="primary" type="submit">開始試算 <span aria-hidden="true">→</span></button>
         </form>
@@ -46,7 +64,8 @@
       </section>
     </div>
     <section class="explanation"><h2>這筆金額怎麼算？</h2><div class="explanation-grid"><div><span>01 / 未滿 20 期</span><p>補足至第 20 期的正常月付款，再加上繳完第 20 期的剩餘本金 × 1.03。</p></div><div><span>02 / 已滿 20 期</span><p>以目前剩餘本金 × 1.03 估算。全部繳清時，結清金額為 0。</p></div><div><span>03 / 短期合約</span><p>總期數不足 20 期時，僅補足至合約最後一期，不計算不存在的期數。</p></div></div></section>
-    <footer><p>本工具僅供提前結清金額初步試算，不代表任何金融機構正式結清報價。實際金額仍應依貸款契約、繳款紀錄及金融機構結清明細為準。</p><p class="footer-note">貸款結清試算工具 · 純瀏覽器運算</p></footer>
+    </section>
+    <footer><p>本工具僅供貸款月付款與提前結清金額初步試算，不代表任何金融機構正式報價。實際金額仍應依貸款契約、繳款紀錄及金融機構結清明細為準。</p><p class="footer-note">LoanCalc｜貸款試算工具 · 純瀏覽器運算</p></footer>
   </main>
 </body>
 </html>
